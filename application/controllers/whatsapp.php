@@ -83,16 +83,20 @@ switch ($action) {
         break;
         
     case "test_send":
-        // Dados telefone
-        $codPais = $_POST["codPais"];
-        $ddd = _post("ddd");
-        $number = $_POST["number"];
-        $celPhone = intval("{$codPais}{$ddd}{$number}");
-        
-        $type = intval($_POST["type"]);
-        $message = $_POST["message"];
+        $celPhone = preg_replace('/\D+/', '', _post('number'));
+        $message = trim(_post('message'));
+
+        if (strlen($celPhone) < 10 || strlen($celPhone) > 15) {
+            echo 'Informe o número completo, incluindo código do país e DDD.';
+            break;
+        }
+
+        if ($message === '') {
+            echo 'Informe o texto da mensagem.';
+            break;
+        }
         $whats = new WhatsApp();
-        $whats->Send($message, $celPhone, "👁️‍🗨️ Fatura: \n",  $type);
+        $whats->Send($message, $celPhone, '');
         echo $_L['Test performed successfully'];
         break;
 

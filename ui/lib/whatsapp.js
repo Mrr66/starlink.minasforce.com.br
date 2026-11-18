@@ -36,17 +36,20 @@ $(document).ready(function () {
         var _url = $("#_url").val();
         $.post(_url + 'whatsapp/test_send/', {
 
-            codPais : $('#codPais').val(),
-            ddd : $('#ddd').val(),
             number : $('#number').val(),
-            type : $('#inlineFormCustomSelect').val(),
             message : $('#message').val()      
         })
             .done(function (data) {
+                $('#ibox_form').unblock();
                 var body = $("html, body");
                 body.animate({scrollTop:0}, '1000', 'swing');
                 $("#emsgbody").html(data);
                 $("#emsg").show("slow");
+            })
+            .fail(function () {
+                $('#ibox_form').unblock();
+                $("#emsgbody").html('Não foi possível enviar a mensagem. Tente novamente.');
+                $("#emsg").removeClass('alert-info').addClass('alert-danger').show("slow");
             });
     });
 });
