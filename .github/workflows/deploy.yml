@@ -32,7 +32,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          find admin application client ui -type f -name '*.php' -print0 \
+          find admin application client ui -type d -name vendor -prune -o \
+            -type f -name '*.php' -print0 \
             | xargs -0 -n1 php -l
 
   publicar:
@@ -110,4 +111,3 @@ jobs:
           ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" -o BatchMode=yes \
             "$DEPLOY_USER@$DEPLOY_HOST" \
             "cd '$DEPLOY_PATH' && mkdir -p application/storage/{temp,pics,products,transactions} application/lib/mpdf/{tmp,graph_cache} && chmod -R ug+rwX application/storage application/lib/mpdf/tmp application/lib/mpdf/graph_cache"
-
