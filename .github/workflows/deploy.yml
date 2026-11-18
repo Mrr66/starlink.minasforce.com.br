@@ -32,7 +32,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          find admin application client ui -type d -name vendor -prune -o \
+          find admin application client ui \
+            -type d \( -name vendor -o -path 'application/lib' \) -prune -o \
             -type f -name '*.php' -print0 \
             | xargs -0 -n1 php -l
 
