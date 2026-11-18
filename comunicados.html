@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Starlink - Envio de Mensagens</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="icon" type="image/png" href="https://starlink.minasforce.com.br/application/storage/icon/favicon-32x32.png?2"/>
+    
+    <style>
+        :root { --primary-color: #010203; --success-color: #059669; --danger-color: #dc2626; }
+        body { background: #f0f4f8; min-height: 100vh; font-family: 'Segoe UI', sans-serif; }
+        .navbar { background-color: var(--primary-color); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .stat-card { padding: 1.2rem; border-radius: 10px; text-align: center; border-bottom: 4px solid #ccc; }
+        .stat-card.blue { background-color: #eff6ff; border-bottom-color: #3b82f6; }
+        .stat-card.green { background-color: #f0fdf4; border-bottom-color: var(--success-color); }
+        .stat-card.red { background-color: #fef2f2; border-bottom-color: var(--danger-color); }
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+        .status-success { background: #dcfce7; color: #166534; }
+        .status-error { background: #fee2e2; color: #991b1b; }
+        .alert-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-dark mb-4">
+        <div class="container-fluid">
+            <span class="navbar-brand"><i class="fas fa-satellite-dish me-2"></i> Starlink Force - Comunicados</span>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4">
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3"><i class="fas fa-edit me-2"></i>Conteúdo da Mensagem</h5>
+                        <textarea id="messageText" class="form-control mb-2" placeholder="Digite seu comunicado..." rows="8"></textarea>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted"><span id="charCount">0</span> caracteres</small>
+                            <div>
+                                <button type="button" id="clearBtn" class="btn btn-outline-secondary btn-sm me-2">Limpar</button>
+                                <button type="button" id="reloadBtn" class="btn btn-outline-primary btn-sm"><i class="fas fa-sync"></i> Atualizar Contatos</button>
+                            </div>
+                        </div>
+                        <hr>
+                        <button type="button" id="sendBtn" class="btn btn-primary btn-lg w-100" disabled>
+                            <i class="fas fa-paper-plane me-2"></i>Enviar para <span id="selectedCount">0</span> selecionado(s)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="row g-3">
+                    <div class="col-12"><div class="stat-card blue"><h6>Contatos na Lista</h6><div class="h3 mb-0" id="totalContacts">0</div></div></div>
+                    <div class="col-6"><div class="stat-card green"><h6>Sucesso</h6><div class="h3 mb-0" id="successCount">0</div></div></div>
+                    <div class="col-6"><div class="stat-card red"><h6>Falhas</h6><div class="h3 mb-0" id="errorCount">0</div></div></div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                        <h5 class="mb-0">Destinatários</h5>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="selectAll" checked>
+                            <label class="form-check-label" for="selectAll">Selecionar Todos</label>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive" style="max-height: 500px;">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-4" width="50">Sel.</th>
+                                        <th>Conta/Nome</th>
+                                        <th>Telefone</th>
+                                        <th class="text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="contactsBody">
+                                    <tr><td colspan="4" class="text-center py-4">Carregando contatos...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="alertContainer" class="alert-container"></div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <script>
+        const API_URL = 'https://starlink.minasforce.com.br/?ng=api';
+        const API_KEY = window.STARLINK_API_KEY || '';
+
+        let contacts = [];
+
+        $(document).ready(function() {
+            loadContacts();
+
+            $('#messageText').on('input', function() {
+                $('#charCount').text($(this).val().length);
+                updateSendButtonState();
+            });
+
+            $('#reloadBtn').on('click', loadContacts);
+            $('#clearBtn').on('click', () => { $('#messageText').val(''); updateSendButtonState(); });
+            
+            $(document).on('change', '#selectAll', function() {
+                $('.contact-check').prop('checked', $(this).is(':checked'));
+                updateSelectedCount();
+            });
+
+            $(document).on('change', '.contact-check', updateSelectedCount);
+            $('#sendBtn').on('click', sendBulkMessages);
+        });
+
+        function loadContacts() {
+            const fd = new FormData();
+            fd.append('method', 'get_contacts');
+            fd.append('key', API_KEY);
+
+            $.ajax({
+                url: API_URL,
+                type: 'POST',
+                data: fd,
+                processData: false,
+                contentType: false,
+                success: function(res) {
+                    if (res.result && Array.isArray(res.result)) {
+                        contacts = res.result.filter(c => c.phone);
+                        renderTable();
+                        $('#totalContacts').text(contacts.length);
+                        updateSelectedCount();
+                    }
+                },
+                error: () => showAlert('Erro ao carregar lista de contatos.', 'danger')
+            });
+        }
+
+        function renderTable() {
+            let html = '';
+            contacts.forEach((c, i) => {
+                html += `
+                <tr>
+                    <td class="ps-4"><input type="checkbox" class="form-check-input contact-check" data-id="${i}" checked></td>
+                    <td>${c.account || 'N/A'}</td>
+                    <td><code>${c.phone}</code></td>
+                    <td class="text-center" id="status-${i}"><span class="text-muted small">Pendente</span></td>
+                </tr>`;
+            });
+            $('#contactsBody').html(html);
+        }
+
+        function updateSelectedCount() {
+            const count = $('.contact-check:checked').length;
+            $('#selectedCount').text(count);
+            updateSendButtonState();
+        }
+
+        function updateSendButtonState() {
+            const hasMsg = $('#messageText').val().trim().length > 0;
+            const hasSel = $('.contact-check:checked').length > 0;
+            $('#sendBtn').prop('disabled', !(hasMsg && hasSel));
+        }
+
+        async function sendBulkMessages() {
+            const message = $('#messageText').val();
+            const selected = $('.contact-check:checked');
+            
+            $('#sendBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Enviando...');
+            let success = 0, errors = 0;
+
+            for (let el of selected) {
+                const id = $(el).data('id');
+                const contact = contacts[id];
+                
+                $(`#status-${id}`).html('<span class="spinner-border spinner-border-sm text-primary"></span>');
+
+                const fd = new FormData();
+                fd.append('method', 'send_whatsapp_message');
+                fd.append('key', API_KEY);
+                fd.append('numero', "55"+contact.phone.replace(/\D/g, '')); // Limpa caracteres especiais
+                fd.append('mensagem', message);
+
+                try {
+                    const response = await fetch(API_URL, { method: 'POST', body: fd });
+                    const result = await response.json();
+
+                    // Ajuste aqui conforme o retorno da sua API (ex: se retorna status: 'success')
+                    if (response.ok) { 
+                        $(`#status-${id}`).html('<span class="status-badge status-success">Enviado</span>');
+                        success++;
+                    } else {
+                        throw new Error();
+                    }
+                } catch (e) {
+                    $(`#status-${id}`).html('<span class="status-badge status-error">Erro</span>');
+                    errors++;
+                }
+                
+                $('#successCount').text(success);
+                $('#errorCount').text(errors);
+            }
+
+            $('#sendBtn').prop('disabled', false).html('<i class="fas fa-paper-plane me-2"></i>Enviar Novamente');
+            showAlert('Envio em massa concluído!');
+        }
+
+        function showAlert(msg, type = 'info') {
+            const id = Date.now();
+            $('#alertContainer').append(`<div id="${id}" class="alert alert-${type} shadow-sm">${msg}</div>`);
+            setTimeout(() => $(`#${id}`).fadeOut(() => $(`#${id}`).remove()), 3000);
+        }
+    </script>
+</body>
+</html>

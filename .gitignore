@@ -1,0 +1,44 @@
+# Configuracoes locais e segredos
+/application/config.php
+/application/controllers/API_Chave.key
+/application/controllers/API_Certificado.crt
+/.env
+/.env.*
+!/.env.example
+
+# Copia antiga/duplicada da aplicacao
+/vendor/application/
+/vendor/admin/
+/vendor/client/
+/vendor/ui/
+
+# Arquivos gerados e enviados pelos usuarios
+/application/storage/temp/*
+!/application/storage/temp/index.html
+!/application/storage/temp/.htaccess
+/application/storage/pics/*
+!/application/storage/pics/index.html
+!/application/storage/pics/.htaccess
+/application/storage/products/*
+!/application/storage/products/index.html
+!/application/storage/products/.htaccess
+/application/storage/transactions/*
+!/application/storage/transactions/index.html
+!/application/storage/transactions/.htaccess
+/application/lib/mpdf/tmp/*
+/application/lib/mpdf/graph_cache/*
+
+# Logs, caches, backups e arquivos do sistema operacional/IDE
+*.log
+*.bak
+*.backup
+*.tmp
+*.csv
+*.pem
+*.p12
+*.pfx
+*.key
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
