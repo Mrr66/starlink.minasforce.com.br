@@ -1,0 +1,113 @@
+name: Validar e publicar
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: producao-starlink
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    name: Validar PHP
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+          tools: none
+
+      - name: Verificar sintaxe PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          find admin application client ui -type f -name '*.php' -print0 \
+            | xargs -0 -n1 php -l
+
+  publicar:
+    name: Publicar em producao
+    needs: validar
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Baixar o codigo
+        uses: actions/checkout@v4
+
+      - name: Preparar acesso SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Validar destino
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          test -n "$DEPLOY_PATH"
+          test "$DEPLOY_PATH" != "/"
+          test "$DEPLOY_PATH" != "/usr/share/nginx"
+          test -n "${DEPLOY_PORT:-}"
+
+      - name: Sincronizar aplicacao
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          set -euo pipefail
+          rsync -az --delete-delay \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.env' \
+            --exclude='application/config.php' \
+            --exclude='application/controllers/API_Chave.key' \
+            --exclude='application/controllers/API_Certificado.crt' \
+            --exclude='application/storage/temp/' \
+            --exclude='application/storage/pics/' \
+            --exclude='application/storage/products/' \
+            --exclude='application/storage/transactions/' \
+            --exclude='application/lib/mpdf/tmp/' \
+            --exclude='application/lib/mpdf/graph_cache/' \
+            -e "ssh -i ~/.ssh/deploy_key -p $DEPLOY_PORT -o BatchMode=yes" \
+            ./ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+
+      - name: Ajustar diretorios gravaveis
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" -o BatchMode=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_PATH' && mkdir -p application/storage/{temp,pics,products,transactions} application/lib/mpdf/{tmp,graph_cache} && chmod -R ug+rwX application/storage application/lib/mpdf/tmp application/lib/mpdf/graph_cache"
+
